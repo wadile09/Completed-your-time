@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Time Calculator</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    
+    <!-- Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+    <style>
+        body { padding: 2rem; background-color: #f8f9fa; }
+        .card { max-width: 750px; margin: 0 auto; }
+        #result { white-space: pre-wrap; font-family: monospace; }
+        .result-box { min-height: 220px; }
+        .break-list { margin-left: 1.5rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Attendance Time Calculator</h4>
+        </div>
+        
+        <div class="card-body">
+            <p class="text-muted mb-4">
+                Upload your clock in/out screenshot. It detects times, calculates worked hours, counts breaks, shows total + individual break durations, and estimates finish time.
+            </p>
+
+            <div class="mb-3">
+                <label for="imageUpload" class="form-label fw-bold">Upload Screenshot</label>
+                <input type="file" class="form-control" id="imageUpload" accept="image/*">
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <label for="hours" class="form-label fw-bold">Required Duration</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="hours" min="0" value="8" placeholder="Hours">
+                        <span class="input-group-text">h</span>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <label class="form-label invisible">Minutes</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="minutes" min="0" max="59" value="15" placeholder="Minutes">
+                        <span class="input-group-text">min</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="calculate" class="btn btn-primary btn-lg w-100">
+                Process Image & Calculate
+            </button>
+
+            <div id="result" class="mt-4 alert result-box" role="alert" style="display:none;"></div>
+        </div>
+
+        <div class="card-footer text-muted text-center">
+            100% frontend • No data sent anywhere
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.getElementById('calculate').addEventListener('click', async () => {
+        const file = document.getElementById('imageUpload').files[0];
+        const resultDiv = document.getElementById('result');
+        
+        if (!file) {
+            resultDiv.className = 'mt-4 alert alert-danger result-box';
+            resultDiv.textContent = 'Please upload a screenshot first.';
+            resultDiv.style.display = 'block';
+            return;
+        }
+
+        resultDiv.className = 'mt-4 alert alert-info result-box';
+        resultDiv.textContent = 'Processing OCR... (5–20 seconds depending on image)';
+        resultDiv.style.display = 'block';
+
+        try {
+            const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+                logger: m => console.log(m),
+                tessedit_pageseg_mode: '6'
+            });
+
+            // Extract times: 10:27 AM, 01:01 PM, 4:41 PM, etc.
+            const timeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM)?\b/gi;
+            let match;
+            const times = [];
+
+            while ((match = timeRegex.exec(text)) !== null) {
+                let h = parseInt(match[1]);
+                const m = parseInt(match[2]);
+                const period = match[3] ? match[3].toUpperCase() : null;
+
+                if (period === 'PM' && h < 12) h += 12;
+                if (period === 'AM' && h === 12) h = 0;
+
+                times.push(h * 60 + m);
+            }
+
+            if (times.length === 0) {
+                resultDiv.className = 'mt-4 alert alert-danger result-box';
+                resultDiv.textContent = 'No valid times found. Try a clearer image with good contrast.';
+                return;
+            }
+
+            // Process pairs: IN → OUT → IN → OUT ...
+            let totalWorkedMinutes = 0;
+            let totalBreakMinutes = 0;
+            const breaks = [];
+            let currentIn = null;
+
+            for (let i = 0; i < times.length; i++) {
+                if (i % 2 === 0) {
+                    // Expected IN
+                    currentIn = times[i];
+                } else {
+                    // Expected OUT
+                    const out = times[i];
+                    if (currentIn !== null && out > currentIn) {
+                        totalWorkedMinutes += (out - currentIn);
+                    }
+                    currentIn = null;
+                }
+            }
+
+            // Calculate breaks (OUT → next IN)
+            for (let i = 1; i < times.length - 1; i += 2) {
+                const outTime = times[i];
+                const nextInTime = times[i + 1];
+
+                if (nextInTime > outTime) {
+                    const breakDuration = nextInTime - outTime;
+                    totalBreakMinutes += breakDuration;
+                    breaks.push(breakDuration);
+                }
+            }
+
+            // Format helpers
+            const formatDuration = (mins) => {
+                if (mins === 0) return '0 min';
+                const h = Math.floor(mins / 60);
+                const m = mins % 60;
+                return h > 0 ? `${h}h ${m}min` : `${m}min`;
+            };
+
+            const workedStr   = formatDuration(totalWorkedMinutes);
+            const breakTotalStr = formatDuration(totalBreakMinutes);
+
+            const reqH = parseInt(document.getElementById('hours').value) || 0;
+            const reqM = parseInt(document.getElementById('minutes').value) || 0;
+            const requiredMinutes = reqH * 60 + reqM;
+
+            const remainingMinutes = Math.max(0, requiredMinutes - totalWorkedMinutes);
+            const remainingStr = remainingMinutes > 0 
+                ? formatDuration(remainingMinutes)
+                : 'Target reached ✓';
+
+            // Estimated finish if currently clocked IN
+            let finishMsg = '';
+            if (remainingMinutes > 0 && times.length % 2 === 1) {
+                const lastIn = times[times.length - 1];
+                const finishMin = lastIn + remainingMinutes;
+                let fh = Math.floor(finishMin / 60) % 24;
+                const fm = finishMin % 60;
+                const ampm = fh >= 12 ? 'PM' : 'AM';
+                if (fh > 12) fh -= 12;
+                if (fh === 0) fh = 12;
+                finishMsg = `Estimated finish (from last IN): ${fh.toString().padStart(2,'0')}:${fm.toString().padStart(2,'0')} ${ampm}`;
+            }
+
+            // Build result text
+            let output = `Detected ${times.length} time entries\n\n`;
+            output += `Total worked:       ${workedStr}\n`;
+            output += `Breaks taken:       ${breaks.length}\n`;
+            output += `Total break time:   ${breakTotalStr}\n`;
+
+            if (breaks.length > 0) {
+                output += `\nBreak durations:\n`;
+                breaks.forEach((b, idx) => {
+                    output += `  Break #${idx + 1}: ${formatDuration(b)}\n`;
+                });
+            }
+
+            output += `\nRequired today:     ${reqH}h ${reqM.toString().padStart(2,'0')}min\n`;
+            output += `Still needed:       ${remainingStr}\n`;
+
+            if (finishMsg) output += `\n${finishMsg}`;
+
+            resultDiv.className = 'mt-4 alert alert-success result-box';
+            resultDiv.textContent = output;
+
+        } catch (err) {
+            resultDiv.className = 'mt-4 alert alert-danger result-box';
+            resultDiv.textContent = 'Error: ' + err.message;
+        }
+    });
+</script>
+</body>
+</html>
