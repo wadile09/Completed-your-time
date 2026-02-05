@@ -4,42 +4,386 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance Time Calculator</title>
-    
+   
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    
+   
     <!-- Tesseract.js -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
     <style>
-        body { padding: 2rem; background-color: #f8f9fa; }
-        .card { max-width: 750px; margin: 0 auto; }
-        #result { white-space: pre-wrap; font-family: monospace; }
-        .result-box { min-height: 220px; }
-        .break-list { margin-left: 1.5rem; }
+        body {
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated Time-themed Background */
+        .time-bg {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .time-particle {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 1.8rem;
+            font-weight: bold;
+            white-space: nowrap;
+            user-select: none;
+            pointer-events: none;
+            animation: float 25s infinite linear;
+            will-change: transform, opacity;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .time-particle.clock {
+            font-size: 2.5rem;
+            animation-duration: 35s;
+            animation-direction: reverse;
+        }
+
+        .time-particle.hourglass {
+            font-size: 2.2rem;
+            animation-duration: 40s;
+        }
+
+        .time-particle.digit {
+            font-size: 3rem;
+            opacity: 0.2;
+            animation-duration: 50s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(-10vw, 120vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% { opacity: 0.5; }
+            50% { opacity: 0.4; }
+            90% { opacity: 0.5; }
+            100% {
+                transform: translate(110vw, -30vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* Generate random positions & delays */
+        .time-particle:nth-child(1)  { left: 10%; animation-delay: -5s; }
+        .time-particle:nth-child(2)  { left: 25%; animation-delay: -12s; }
+        .time-particle:nth-child(3)  { left: 40%; animation-delay: -20s; }
+        .time-particle:nth-child(4)  { left: 55%; animation-delay: -28s; }
+        .time-particle:nth-child(5)  { left: 70%; animation-delay: -35s; }
+        .time-particle:nth-child(6)  { left: 85%; animation-delay: -8s; }
+        .time-particle:nth-child(7)  { left: 15%; animation-delay: -18s; animation-duration: 45s; }
+        .time-particle:nth-child(8)  { left: 60%; animation-delay: -32s; animation-duration: 38s; }
+        .time-particle:nth-child(9)  { left: 30%; animation-delay: -25s; }
+        .time-particle:nth-child(10) { left: 78%; animation-delay: -15s; }
+
+        .container {
+            position: relative;
+            z-index: 1;
+        }
+
+        .card {
+            max-width: 750px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px 20px 0 0 !important;
+            padding: 1.5rem;
+            border: none;
+        }
+
+        .card-header h4 {
+            margin: 0;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .card-body {
+            padding: 2rem;
+        }
+
+        .text-muted {
+            color: #6c757d !important;
+        }
+
+        /* Modern Paste Area */
+        .paste-area {
+            min-height: 200px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .paste-area:hover {
+            border-color: #764ba2;
+            background: linear-gradient(135deg, #e9ecef 0%, #f5f7fa 100%);
+            transform: scale(1.02);
+        }
+
+        .paste-area.drag-over {
+            border-color: #56ab2f;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-style: solid;
+        }
+
+        .paste-area.has-image {
+            border-style: solid;
+            border-color: #56ab2f;
+            background: white;
+        }
+
+        .paste-content {
+            text-align: center;
+            padding: 2rem;
+            pointer-events: none;
+        }
+
+        .paste-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.7;
+        }
+
+        .paste-text {
+            color: #4a5568;
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .paste-hint {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .clear-image-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: linear-gradient(135deg, #fc6767 0%, #ec4646 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            display: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .clear-image-btn:hover {
+            transform: scale(1.1);
+            background: linear-gradient(135deg, #ec4646 0%, #fc6767 100%);
+        }
+
+        #result {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            color: #2d3748;
+            font-weight: 500;
+        }
+
+        .result-box {
+            min-height: 220px;
+        }
+
+        .form-label {
+            color: #4a5568;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control, .input-group-text {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            color: #2d3748;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+            background: #ffffff;
+        }
+
+        .input-group-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .card-footer {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-top: 2px solid #e2e8f0;
+            border-radius: 0 0 20px 20px;
+            padding: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, #fc6767 0%, #ec4646 100%);
+            border: none;
+            color: white;
+            border-radius: 12px;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+            border: none;
+            color: white;
+            border-radius: 12px;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            color: white;
+            border-radius: 12px;
+        }
+
+        /* Subtle pulse animation for the card */
+        @keyframes cardPulse {
+            0%, 100% { box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+            50% { box-shadow: 0 25px 70px rgba(102, 126, 234, 0.4); }
+        }
+
+        .card {
+            animation: cardPulse 4s ease-in-out infinite;
+        }
+
+        .file-input-hidden {
+            display: none;
+        }
+
+        .upload-method-hint {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #667eea;
+            font-weight: 600;
+            margin: 0.25rem;
+        }
     </style>
 </head>
 <body>
 
+<div class="time-bg">
+    <div class="time-particle clock">🕒</div>
+    <div class="time-particle clock">🕐</div>
+    <div class="time-particle hourglass">⏳</div>
+    <div class="time-particle">10:30</div>
+    <div class="time-particle digit">12</div>
+    <div class="time-particle clock">🕛</div>
+    <div class="time-particle">06:45</div>
+    <div class="time-particle">18:15</div>
+    <div class="time-particle hourglass">⌛</div>
+    <div class="time-particle digit">09</div>
+</div>
+
 <div class="container">
     <div class="card shadow">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Attendance Time Calculator</h4>
+        <div class="card-header text-white">
+            <h4 class="mb-0">⏰ Attendance Time Calculator</h4>
         </div>
-        
+       
         <div class="card-body">
-            <p class="text-muted mb-4">
-                Upload your clock in/out screenshot. It detects times, calculates worked hours, counts breaks, shows total + individual break durations, and estimates finish time.
+            <p class="text-muted mb-3">
+                📸 Upload, paste, or drag & drop your clock in/out screenshot for instant analysis.
             </p>
-
+            
             <div class="mb-3">
-                <label for="imageUpload" class="form-label fw-bold">Upload Screenshot</label>
-                <input type="file" class="form-control" id="imageUpload" accept="image/*">
+                <label class="form-label">Upload Screenshot</label>
+                <div class="paste-area" id="pasteArea">
+                    <button class="clear-image-btn" id="clearImageBtn">×</button>
+                    <div class="paste-content" id="pasteContent">
+                        <div class="paste-icon">📋</div>
+                        <div class="paste-text">Click to browse or paste image here</div>
+                        <div class="paste-hint">Supports: Ctrl+V paste, drag & drop, or click to browse</div>
+                    </div>
+                    <img id="imagePreview" alt="Preview">
+                </div>
+                <input type="file" class="file-input-hidden" id="imageUpload" accept="image/*">
+                <div class="mt-2 text-center">
+                    <span class="upload-method-hint">📁 Browse</span>
+                    <span class="upload-method-hint">📋 Paste (Ctrl+V)</span>
+                    <span class="upload-method-hint">🖱️ Drag & Drop</span>
+                </div>
             </div>
 
             <div class="row g-3 mb-4">
                 <div class="col-6">
-                    <label for="hours" class="form-label fw-bold">Required Duration</label>
+                    <label for="hours" class="form-label">Required Duration</label>
                     <div class="input-group">
                         <input type="number" class="form-control" id="hours" min="0" value="8" placeholder="Hours">
                         <span class="input-group-text">h</span>
@@ -53,156 +397,229 @@
                     </div>
                 </div>
             </div>
-
-            <button id="calculate" class="btn btn-primary btn-lg w-100">
-                Process Image & Calculate
+            <button id="calculate" class="btn btn-primary btn-lg w-100" disabled>
+                🚀 Process Image & Calculate
             </button>
-
             <div id="result" class="mt-4 alert result-box" role="alert" style="display:none;"></div>
         </div>
-
-        <div class="card-footer text-muted text-center">
-            100% frontend • No data sent anywhere
+        <div class="card-footer text-center">
+            🔒 100% Frontend • No Data Sent Anywhere<br>
+            <strong>Developed By .NET Developer Prashant</strong>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    document.getElementById('calculate').addEventListener('click', async () => {
-        const file = document.getElementById('imageUpload').files[0];
-        const resultDiv = document.getElementById('result');
+let currentImageFile = null;
+
+const pasteArea = document.getElementById('pasteArea');
+const imagePreview = document.getElementById('imagePreview');
+const pasteContent = document.getElementById('pasteContent');
+const clearImageBtn = document.getElementById('clearImageBtn');
+const fileInput = document.getElementById('imageUpload');
+const calculateBtn = document.getElementById('calculate');
+const resultDiv = document.getElementById('result');
+
+// Handle paste event (Ctrl+V)
+document.addEventListener('paste', (e) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            const blob = items[i].getAsFile();
+            handleImageFile(blob);
+            e.preventDefault();
+            break;
+        }
+    }
+});
+
+// Handle click to browse
+pasteArea.addEventListener('click', () => {
+    fileInput.click();
+});
+
+// Handle file input change
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) {
+        handleImageFile(e.target.files[0]);
+    }
+});
+
+// Handle drag and drop
+pasteArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    pasteArea.classList.add('drag-over');
+});
+
+pasteArea.addEventListener('dragleave', () => {
+    pasteArea.classList.remove('drag-over');
+});
+
+pasteArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    pasteArea.classList.remove('drag-over');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type.indexOf('image') !== -1) {
+        handleImageFile(files[0]);
+    }
+});
+
+// Handle clear button
+clearImageBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearImage();
+});
+
+function handleImageFile(file) {
+    currentImageFile = file;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imagePreview.src = e.target.result;
+        imagePreview.style.display = 'block';
+        pasteContent.style.display = 'none';
+        clearImageBtn.style.display = 'block';
+        pasteArea.classList.add('has-image');
+        calculateBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearImage() {
+    currentImageFile = null;
+    imagePreview.style.display = 'none';
+    imagePreview.src = '';
+    pasteContent.style.display = 'flex';
+    clearImageBtn.style.display = 'none';
+    pasteArea.classList.remove('has-image');
+    calculateBtn.disabled = true;
+    fileInput.value = '';
+    resultDiv.style.display = 'none';
+}
+
+// Calculate button click handler
+calculateBtn.addEventListener('click', async () => {
+    if (!currentImageFile) {
+        resultDiv.className = 'mt-4 alert alert-danger result-box';
+        resultDiv.textContent = '❌ Please upload, paste, or drag an image first.';
+        resultDiv.style.display = 'block';
+        return;
+    }
+    
+    resultDiv.className = 'mt-4 alert alert-info result-box';
+    resultDiv.textContent = '⏳ Processing OCR... (5–20 seconds depending on image)';
+    resultDiv.style.display = 'block';
+    calculateBtn.disabled = true;
+    
+    try {
+        const { data: { text } } = await Tesseract.recognize(currentImageFile, 'eng', {
+            logger: m => console.log(m),
+            tessedit_pageseg_mode: '3',
+            tessedit_ocr_engine_mode: '1',
+            tessedit_char_whitelist: '0123456789: AMP',
+        });
         
-        if (!file) {
+        const timeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM)?\b/gi;
+        let match;
+        const times = [];
+        while ((match = timeRegex.exec(text)) !== null) {
+            let h = parseInt(match[1]);
+            const m = parseInt(match[2]);
+            const period = match[3] ? match[3].toUpperCase() : null;
+            if (period === 'PM' && h < 12) h += 12;
+            if (period === 'AM' && h === 12) h = 0;
+            times.push(h * 60 + m);
+        }
+        
+        if (times.length === 0) {
             resultDiv.className = 'mt-4 alert alert-danger result-box';
-            resultDiv.textContent = 'Please upload a screenshot first.';
-            resultDiv.style.display = 'block';
+            resultDiv.textContent = '❌ No valid times found. Try a clearer image with good contrast.\n\n💡 Tip: Make sure times are large, high contrast, not too small/blurry.';
+            calculateBtn.disabled = false;
             return;
         }
 
-        resultDiv.className = 'mt-4 alert alert-info result-box';
-        resultDiv.textContent = 'Processing OCR... (5–20 seconds depending on image)';
-        resultDiv.style.display = 'block';
-
-        try {
-            const { data: { text } } = await Tesseract.recognize(file, 'eng', {
-                logger: m => console.log(m),
-                tessedit_pageseg_mode: '6'
-            });
-
-            // Extract times: 10:27 AM, 01:01 PM, 4:41 PM, etc.
-            const timeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM)?\b/gi;
-            let match;
-            const times = [];
-
-            while ((match = timeRegex.exec(text)) !== null) {
-                let h = parseInt(match[1]);
-                const m = parseInt(match[2]);
-                const period = match[3] ? match[3].toUpperCase() : null;
-
-                if (period === 'PM' && h < 12) h += 12;
-                if (period === 'AM' && h === 12) h = 0;
-
-                times.push(h * 60 + m);
-            }
-
-            if (times.length === 0) {
-                resultDiv.className = 'mt-4 alert alert-danger result-box';
-                resultDiv.textContent = 'No valid times found. Try a clearer image with good contrast.';
-                return;
-            }
-
-            // Process pairs: IN → OUT → IN → OUT ...
-            let totalWorkedMinutes = 0;
-            let totalBreakMinutes = 0;
-            const breaks = [];
-            let currentIn = null;
-
-            for (let i = 0; i < times.length; i++) {
-                if (i % 2 === 0) {
-                    // Expected IN
-                    currentIn = times[i];
-                } else {
-                    // Expected OUT
-                    const out = times[i];
-                    if (currentIn !== null && out > currentIn) {
-                        totalWorkedMinutes += (out - currentIn);
-                    }
-                    currentIn = null;
+        let totalWorkedMinutes = 0;
+        let totalBreakMinutes = 0;
+        const breaks = [];
+        let currentIn = null;
+        
+        for (let i = 0; i < times.length; i++) {
+            if (i % 2 === 0) {
+                currentIn = times[i];
+            } else {
+                const out = times[i];
+                if (currentIn !== null && out > currentIn) {
+                    totalWorkedMinutes += (out - currentIn);
                 }
+                currentIn = null;
             }
-
-            // Calculate breaks (OUT → next IN)
-            for (let i = 1; i < times.length - 1; i += 2) {
-                const outTime = times[i];
-                const nextInTime = times[i + 1];
-
-                if (nextInTime > outTime) {
-                    const breakDuration = nextInTime - outTime;
-                    totalBreakMinutes += breakDuration;
-                    breaks.push(breakDuration);
-                }
-            }
-
-            // Format helpers
-            const formatDuration = (mins) => {
-                if (mins === 0) return '0 min';
-                const h = Math.floor(mins / 60);
-                const m = mins % 60;
-                return h > 0 ? `${h}h ${m}min` : `${m}min`;
-            };
-
-            const workedStr   = formatDuration(totalWorkedMinutes);
-            const breakTotalStr = formatDuration(totalBreakMinutes);
-
-            const reqH = parseInt(document.getElementById('hours').value) || 0;
-            const reqM = parseInt(document.getElementById('minutes').value) || 0;
-            const requiredMinutes = reqH * 60 + reqM;
-
-            const remainingMinutes = Math.max(0, requiredMinutes - totalWorkedMinutes);
-            const remainingStr = remainingMinutes > 0 
-                ? formatDuration(remainingMinutes)
-                : 'Target reached ✓';
-
-            // Estimated finish if currently clocked IN
-            let finishMsg = '';
-            if (remainingMinutes > 0 && times.length % 2 === 1) {
-                const lastIn = times[times.length - 1];
-                const finishMin = lastIn + remainingMinutes;
-                let fh = Math.floor(finishMin / 60) % 24;
-                const fm = finishMin % 60;
-                const ampm = fh >= 12 ? 'PM' : 'AM';
-                if (fh > 12) fh -= 12;
-                if (fh === 0) fh = 12;
-                finishMsg = `Estimated finish (from last IN): ${fh.toString().padStart(2,'0')}:${fm.toString().padStart(2,'0')} ${ampm}`;
-            }
-
-            // Build result text
-            let output = `Detected ${times.length} time entries\n\n`;
-            output += `Total worked:       ${workedStr}\n`;
-            output += `Breaks taken:       ${breaks.length}\n`;
-            output += `Total break time:   ${breakTotalStr}\n`;
-
-            if (breaks.length > 0) {
-                output += `\nBreak durations:\n`;
-                breaks.forEach((b, idx) => {
-                    output += `  Break #${idx + 1}: ${formatDuration(b)}\n`;
-                });
-            }
-
-            output += `\nRequired today:     ${reqH}h ${reqM.toString().padStart(2,'0')}min\n`;
-            output += `Still needed:       ${remainingStr}\n`;
-
-            if (finishMsg) output += `\n${finishMsg}`;
-
-            resultDiv.className = 'mt-4 alert alert-success result-box';
-            resultDiv.textContent = output;
-
-        } catch (err) {
-            resultDiv.className = 'mt-4 alert alert-danger result-box';
-            resultDiv.textContent = 'Error: ' + err.message;
         }
-    });
+
+        for (let i = 1; i < times.length - 1; i += 2) {
+            const outTime = times[i];
+            const nextInTime = times[i + 1];
+            if (nextInTime > outTime) {
+                const breakDuration = nextInTime - outTime;
+                totalBreakMinutes += breakDuration;
+                breaks.push(breakDuration);
+            }
+        }
+
+        const formatDuration = (mins) => {
+            if (mins === 0) return '0 min';
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return h > 0 ? `${h}h ${m}min` : `${m}min`;
+        };
+
+        const workedStr = formatDuration(totalWorkedMinutes);
+        const breakTotalStr = formatDuration(totalBreakMinutes);
+        const reqH = parseInt(document.getElementById('hours').value) || 0;
+        const reqM = parseInt(document.getElementById('minutes').value) || 0;
+        const requiredMinutes = reqH * 60 + reqM;
+        const remainingMinutes = Math.max(0, requiredMinutes - totalWorkedMinutes);
+        const remainingStr = remainingMinutes > 0
+            ? formatDuration(remainingMinutes)
+            : 'Target reached ✓';
+
+        let finishMsg = '';
+        if (remainingMinutes > 0 && times.length % 2 === 1) {
+            const lastIn = times[times.length - 1];
+            const finishMin = lastIn + remainingMinutes;
+            let fh = Math.floor(finishMin / 60) % 24;
+            const fm = finishMin % 60;
+            const ampm = fh >= 12 ? 'PM' : 'AM';
+            if (fh > 12) fh -= 12;
+            if (fh === 0) fh = 12;
+            finishMsg = `🎯 Estimated finish (from last IN): ${fh.toString().padStart(2,'0')}:${fm.toString().padStart(2,'0')} ${ampm}`;
+        }
+
+        let output = `✅ Detected ${times.length} time entries\n\n`;
+        output += `⏱️ Total worked: ${workedStr}\n`;
+        output += `☕ Breaks taken: ${breaks.length}\n`;
+        output += `⏸️ Total break time: ${breakTotalStr}\n`;
+        if (breaks.length > 0) {
+            output += `\n📊 Break durations:\n`;
+            breaks.forEach((b, idx) => {
+                output += `   Break #${idx + 1}: ${formatDuration(b)}\n`;
+            });
+        }
+        output += `\n📅 Required today: ${reqH}h ${reqM.toString().padStart(2,'0')}min\n`;
+        output += `⏳ Still needed: ${remainingStr}\n`;
+        if (finishMsg) output += `\n${finishMsg}`;
+
+        resultDiv.className = 'mt-4 alert alert-success result-box';
+        resultDiv.textContent = output;
+        calculateBtn.disabled = false;
+        
+    } catch (err) {
+        resultDiv.className = 'mt-4 alert alert-danger result-box';
+        resultDiv.textContent = '❌ Error: ' + err.message;
+        calculateBtn.disabled = false;
+    }
+});
 </script>
 </body>
 </html>
